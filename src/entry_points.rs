@@ -4,20 +4,24 @@ use regex::Regex;
 use ssh2_config::{ParseRule, SshConfig};
 use std::env;
 use std::{fs::File, io::BufReader};
+
 pub fn check() -> Vec<ssh2_config::Host> {
     dotenv().ok();
 
-    let mut fixed_servers =  Vec::new();
+    let mut fixed_servers = Vec::new();
 
     for (key, value) in env::vars() {
         match key.find("FIXED_SERVER_") {
             Some(_) => {
                 fixed_servers.push(value.to_owned());
-            },
-            None => {},
+            }
+            None => {}
         }
     }
 
+    println!("fixed_servers: {:?}", fixed_servers);
+
+    // return vec![];
     let home = get_my_home().expect("Sorry, can't find your home directory.");
 
     let config_path = home
@@ -52,9 +56,12 @@ pub fn check() -> Vec<ssh2_config::Host> {
         .filter(|x| {
             fixed_servers
                 .iter()
-                .any(|server| *server == x.pattern[0].pattern)
+                .find(|server| **server == x.pattern[0].pattern)
+                .is_some()
         })
         .for_each(|x| enter_list.push(x.to_owned()));
 
+    println!("从配置中筛选出来的 {:?}", enter_list );
+    println!("共 {} 个", enter_list.len());
     enter_list
 }
