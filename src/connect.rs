@@ -1,5 +1,4 @@
 use ssh2_config::Host;
-use std::alloc::handle_alloc_error;
 use std::io::Read;
 use std::net::TcpStream;
 use std::path::Path;
@@ -29,13 +28,18 @@ fn handle_ssh_connection(server: Host) -> Result<ssh2::Session, ssh2::Error> {
     Ok(session)
 }
 
-fn handle_chennel_operations(thread_boot_unit: Thread_Boot) {
+fn handle_chennel_operations(thread_boot_unit:ThreadBoot) {
     let session = thread_boot_unit.session;
     let mark_server_name = thread_boot_unit.name_mark;
 
+    // 打开通道
     let mut channel = session.channel_session().unwrap();
-    channel.exec("uname -a");
-    channel.exec("last | head -n 5");
+
+    // 执行命令
+    channel.exec("uname -a").unwrap();
+    channel.exec("last | head -n 5").unwrap();
+
+    // 读取返回的数据
     let mut output = String::new();
     channel.read_to_string(&mut output).unwrap();
     println!("{}", output);
@@ -46,9 +50,9 @@ fn handle_chennel_operations(thread_boot_unit: Thread_Boot) {
     println!("Exited: {}", mark_server_name);
 }
 
-struct Thread_Boot {
-    name_mark : String, 
-    session : ssh2::Session,
+pub struct ThreadBoot {
+    name_mark: String,
+    session: ssh2::Session,
 }
 
 pub fn threads_boot(entry_points: Vec<Host>) {
@@ -59,7 +63,7 @@ pub fn threads_boot(entry_points: Vec<Host>) {
         let handle = thread::Builder::new()
             .name(mark_server_name.to_owned())
             .spawn(move || {
-                let mut session = match handle_ssh_connection(server) {
+                let session = match handle_ssh_connection(server) {
                     Ok(sess) => sess,
                     Err(e) => {
                         println!("handle_ssh_connection error: {:?}", e);
@@ -67,7 +71,10 @@ pub fn threads_boot(entry_points: Vec<Host>) {
                     }
                 };
 
-                handle_chennel_operations(Thread_Boot { name_mark: mark_server_name, session });
+                handle_chennel_operations(ThreadBoot {
+                    name_mark: mark_server_name,
+                    session,
+                });
             })
             .unwrap();
         handles.push(handle);
