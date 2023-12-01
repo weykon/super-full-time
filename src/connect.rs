@@ -34,7 +34,7 @@ pub fn sshs(entry_points: Vec<Host>) {
                 let mut channel = session.channel_session().unwrap();
                 use super::process::common;
                 common::common(&mut channel);
-                
+
                 // 关闭通道
                 channel.send_eof().unwrap();
                 channel.wait_close().unwrap();
