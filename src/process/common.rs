@@ -9,4 +9,3 @@ pub fn common(channel: &mut Channel) {
     println!("{}", output);
 }
 
-

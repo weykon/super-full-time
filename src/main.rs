@@ -6,6 +6,6 @@ mod process;
 fn main() -> io::Result<()> {
     println!("processing");
     let entry_points = entry_points::check();
-    connect::sshs(entry_points);
+    connect::threads_boot(entry_points);
     Ok(())
 }
