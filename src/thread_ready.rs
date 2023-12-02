@@ -1,53 +1,35 @@
 use ssh2_config::Host;
-use std::net::TcpStream;
-use std::path::Path;
 use std::thread;
 
-fn handle_ssh_connection(server: Host) -> Result<ssh2::Session, ssh2::Error> {
-    let mut session = ssh2::Session::new().unwrap();
-    let key_file_path_str = server.params.identity_file.unwrap();
-    println!("{:?}", key_file_path_str);
-
-    let ip = server.params.host_name.as_ref().unwrap();
-    let tcp = TcpStream::connect(format!("{}:22", ip)).unwrap();
-    println!("connect to {} {}", ip, server.pattern[0].pattern);
-
-    session.set_tcp_stream(tcp);
-    session.handshake().unwrap();
-
-    let private_key_path = Path::new(&key_file_path_str[0]);
-    println!("private_key_path : {:?}", private_key_path);
-
-    match session.userauth_pubkey_file("root", None, private_key_path, None) {
-        Ok(_) => println!("userauth_pubkey_file success"),
-        Err(e) => println!("userauth_pubkey_file error: {:?}", e),
-    }
-
-    assert!(session.authenticated());
-    Ok(session)
-}
+mod ssh_ready;
 
 mod handle_channel;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 
 pub struct ThreadBoot {
     name_mark: String,
     session: ssh2::Session,
-    command_rx: mpsc::Receiver<String>,
-    command_tx: mpsc::Sender<String>
+    command_rx: Arc<Mutex<mpsc::Receiver<String>>>,
+    command_tx: Arc<Mutex<mpsc::Sender<String>>>,
 }
 
 pub fn threads_boot(entry_points: Vec<Host>) {
     let mut handles = vec![];
+    let mut txs = vec![];
+    let mut rxs = vec![];
     for server in entry_points.iter() {
         let (tx, rx) = mpsc::channel();
+        let tx = Arc::new(Mutex::new(tx));
+        let rx = Arc::new(Mutex::new(rx));
         let server = server.clone();
         let mark_server_name = server.pattern[0].pattern.to_owned();
+        txs.push((mark_server_name.clone(), Arc::clone(&tx)));
+        rxs.push((mark_server_name.clone(), Arc::clone(&rx)));
         let handle = thread::Builder::new()
             // 标记线程名称
             .name(mark_server_name.to_owned())
             .spawn(move || {
-                let session = match handle_ssh_connection(server) {
+                let session = match ssh_ready::handle_ssh_connection(server) {
                     Ok(sess) => sess,
                     Err(e) => {
                         println!("handle_ssh_connection error: {:?}", e);
@@ -59,15 +41,23 @@ pub fn threads_boot(entry_points: Vec<Host>) {
                 handle_channel::operations(ThreadBoot {
                     name_mark: mark_server_name,
                     session,
-                    command_rx: rx,
-                    command_tx: tx,
+                    command_rx: Arc::clone(&rx),
+                    command_tx: Arc::clone(&tx),
                 });
             })
             .unwrap();
         handles.push(handle);
     }
 
+    // 这里的是主线程的循环，来检查来自线程下的消息从而作出的反应
+    looping_in_main::loopping_in_main(rxs, txs);
+
     for handle in handles {
         handle.join().unwrap();
     }
+
 }
+
+mod looping_in_main;
+mod first_running;
+mod main_step_or_terminal;
