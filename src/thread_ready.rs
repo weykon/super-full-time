@@ -1,5 +1,4 @@
 use ssh2_config::Host;
-use std::io::Read;
 use std::net::TcpStream;
 use std::path::Path;
 use std::thread;
@@ -28,39 +27,24 @@ fn handle_ssh_connection(server: Host) -> Result<ssh2::Session, ssh2::Error> {
     Ok(session)
 }
 
-fn handle_chennel_operations(thread_boot_unit:ThreadBoot) {
-    let session = thread_boot_unit.session;
-    let mark_server_name = thread_boot_unit.name_mark;
-
-    // 打开通道
-    let mut channel = session.channel_session().unwrap();
-
-    // 执行命令
-    channel.exec("uname -a").unwrap();
-    channel.exec("last | head -n 5").unwrap();
-
-    // 读取返回的数据
-    let mut output = String::new();
-    channel.read_to_string(&mut output).unwrap();
-    println!("{}", output);
-
-    // 关闭通道
-    channel.send_eof().unwrap();
-    channel.wait_close().unwrap();
-    println!("Exited: {}", mark_server_name);
-}
+mod handle_channel;
+use std::sync::mpsc;
 
 pub struct ThreadBoot {
     name_mark: String,
     session: ssh2::Session,
+    command_rx: mpsc::Receiver<String>,
+    command_tx: mpsc::Sender<String>
 }
 
 pub fn threads_boot(entry_points: Vec<Host>) {
     let mut handles = vec![];
     for server in entry_points.iter() {
+        let (tx, rx) = mpsc::channel();
         let server = server.clone();
         let mark_server_name = server.pattern[0].pattern.to_owned();
         let handle = thread::Builder::new()
+            // 标记线程名称
             .name(mark_server_name.to_owned())
             .spawn(move || {
                 let session = match handle_ssh_connection(server) {
@@ -71,14 +55,18 @@ pub fn threads_boot(entry_points: Vec<Host>) {
                     }
                 };
 
-                handle_chennel_operations(ThreadBoot {
+                // 通道内
+                handle_channel::operations(ThreadBoot {
                     name_mark: mark_server_name,
                     session,
+                    command_rx: rx,
+                    command_tx: tx,
                 });
             })
             .unwrap();
         handles.push(handle);
     }
+
     for handle in handles {
         handle.join().unwrap();
     }
