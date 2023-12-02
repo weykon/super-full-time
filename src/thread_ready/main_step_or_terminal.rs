@@ -11,11 +11,10 @@ use std::sync::Arc;
 pub(crate) fn step_done_or_terminal(
     ellapsed: &mut i32,
     txs: &Vec<(String, Arc<Mutex<Sender<String>>>)>,
-) -> bool {
+)  {
     terminal(ellapsed, txs);
     // step的时间段
     thread::sleep(Duration::from_millis(200));
-    *ellapsed >= 4_000 
 }
 
 // 主线程的step到头检查点
