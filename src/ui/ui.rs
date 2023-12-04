@@ -1,14 +1,18 @@
 use ratatui::{
     layout::Alignment,
     style::{Color, Style},
-    widgets::{Block, BorderType, Borders, Paragraph},
+    widgets::{Block, BorderType, Borders, Paragraph, Table},
     Frame,
 };
 
 use super::app::App;
 
+pub fn render (app : &mut App, frame: &mut Frame){
+
+}
+
 /// Renders the user interface widgets.
-pub fn render(app: &mut App, frame: &mut Frame) {
+pub fn test_render(app: &mut App, frame: &mut Frame) {
     // This is where you add new widgets.
     // See the following resources:
     // - https://docs.rs/ratatui/latest/ratatui/widgets/index.html
